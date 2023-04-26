@@ -17,10 +17,13 @@ Bottom line, finish ***the last mile*** of user search journey, by providing ans
 5. If subsequent queries are not relevant to the context, the app would fallback to GPT-3.5 for answer.
 
 ##  To use this app
-1. commfuncs.pyc is compiled with Python 3.9, stuck to this version because of other library dependencies.
-2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY should be set up beforehand.
+1. commfuncs.pyc is compiled with Python 3.9, I am stuck to this version because of other library dependencies.
+2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY (with your OpenAI account) should be set up beforehand.
 3. The app has coded in OpenAI rate limit, based on ***pay-as-you-go*** plan.
-4. answers from OPENAI was set up with *some* sarcastic tones.
+4. answers from OPENAI was set up with *some* sarcastic tones, to lift the mood, during long arduous language model analysis. 
+5. it is *slow*, all Open API calls are sequential. I tried and failed to make parallel calls, regardless rate limit.
+For commercial use, there are several potentials to speed up response time. But even with current form, **it might still be faster than most people reading through 10 web pages**.
+
 
 ## Exhibit 1
 
