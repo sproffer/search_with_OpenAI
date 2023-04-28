@@ -18,8 +18,8 @@ Bottom line, finish ***the last mile*** of user search journey, by providing ans
 
 ##  To use this app
 1. packages needed:   
-```python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html```
-2. commfuncs.pyc is compiled with Python 3.9, stay on this version because of other library dependencies.
+```python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html  Jinja2```
+2. commfuncs.pyc is compiled with Python 3.11.
 2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY (with your OpenAI account) should be set up beforehand.
 3. The app has coded in OpenAI rate limit, based on ***pay-as-you-go*** plan.
 4. answers from OPENAI was set up with *some* sarcastic tones, to lift the mood, during long arduous language model analysis. 
@@ -35,23 +35,23 @@ For commercial use, there are several potentials to speed up response time. But 
 
 %  ./webSearch.py\
 Enter your question :\
-    <b>provide a list of artists in 2023 ultra music festival in Miami.</b>\
+    <b>provide a list of artists performing in 2023 ultra music festival in Miami</b>\
 \
 17:45:55 - ...........  .........\
 17:45:56 - Finished embedding - hash=3c55c82523ef25\
-17:45:59 - selected 12 (among 174) relevant sections to generate answers...\
-17:46:40 -  query gpt-3.5-turbo with 439 tokens ........................\
+17:45:59 - selected 12 (among 168) relevant sections to generate answers...\
+17:46:40 -  query gpt-3.5-turbo with 114 tokens ........................\
 \
 \
 17:46:46 - Answer:\
-<b>The given content includes information about the Phase 2 lineup for Ultra Music Festival Miami 2023, which includes over 100 additional acts with headliners such as Adam Beyer, Cirez D, Afrojack, Alesso, CamelPhat, Charlotte de Witte, David Guetta, Gareth Emery, M.I.A., Marshmello, Michael Bibi, Stephan Bodzin (Live), Tiesto, and Vini Vici. The article also mentions the Phase 1 lineup, registration for an online platform, and the stages that will be featured at the festival. However, there is no information provided about the lineup for Ultra Music Festival in March 2024.</b>\
+<b>The list of artists performing in the 2023 Ultra Music Festival in Miami includes Martin Garrix, Swedish House Mafia, Eric Prydz, Armin Van Buuren, Grimes, Zedd, Charlotte De Witte, Kx5, Ganja White Night, Walker & Royce, Metaphysical, David Guetta, Claude Von Stroke, Sub Zero Project, Andy C, Oliver Heldens b2b Tchami, and Cedric Gervais.</b>\
 \
 17:46:46 - References:\
 [\
-  <b>"https://soundrivemusic.com/2023/02/03/ultra-music-festival-phase-2/",</b> \
-  <b>"https://weraveyou.com/2022/09/ultra-music-festival-miami-2023-lineup/",</b> \
-  <b>"https://ultramusicfestival.com/lineup/",</b> \
-  <b>"https://www.timeout.com/miami/music/everything-you-need-to-know-about-the-ultra-music-festival-miami-2023-lineup-and-schedule"</b> \
+    <b>"https://djmag.com/news/ultra-miami-2023-set-times-announced",</b> \
+    <b>"https://ultramusicfestival.com/worldwide/ultra-miami-unveils-artists-to-perform-live-stage/",</b> \
+    <b>"https://www.everfest.com/e/ultra-music-festival",</b> \
+    <b>"https://www.setlist.fm/festival/2023/ultra-music-festival-2023-3d425e7.html"</b> \
 ]\
 \
 Enter your next question, if you want to stop, type stop:\

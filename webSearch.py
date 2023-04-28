@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/local/bin/python3.11
 import os, time, json, openai, sys, traceback, asyncio
 import pandas as pd
 from commfuncs import get_embedded_dataframe, log, get_answer
