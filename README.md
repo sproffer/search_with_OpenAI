@@ -21,8 +21,8 @@ Bottom line, finish ***the last mile*** of user search journey, by providing ans
 ```python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html  Jinja2```
 2. commfuncs.pyc is compiled with Python 3.11.
 2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY (with your OpenAI account) should be set up beforehand.
-3. The app has coded in OpenAI rate limit, based on ***pay-as-you-go*** plan.
-4. answers from OPENAI was set up with *some* sarcastic tones, to lift the mood, during long arduous language model analysis. 
+3. the app has coded in [OpenAI rate limit](https://platform.openai.com/docs/guides/rate-limits/overview), based on ***pay-as-you-go*** plan.
+4. answers from OpenAI was set up to randomly include sarcastic tones, to lift my mood during long arduous language model analysis. 
 5. it is *slow*, all Open API calls are sequential. I tried and failed to make parallel calls, regardless rate limit.
 For commercial use, there are several potentials to speed up response time. But even with current form, **it might still be faster than most people reading through 10 web pages**.
 
