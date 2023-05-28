@@ -1,4 +1,3 @@
-#!/usr/local/bin/python3
 import json
 
 import tiktoken, time, openai, os, sys, random

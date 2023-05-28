@@ -1,12 +1,8 @@
-#!/usr/local/bin/python3
 #
 #  Parse PDF files from command line arguments and puyt into Pandas DataFrame
 #
 #  package installed: (version lagging for python3.11)
 #     /usr/local/bin/python3 -m pip install py-pdf-parser\[dev\]
-#     /usr/local/bin/python3 -m pip install cython
-#     brew install python-tk@3.9
-#     brew install freetype imagemagick
 #
 from py_pdf_parser.loaders import load_file
 import pandas as pd

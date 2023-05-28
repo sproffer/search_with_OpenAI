@@ -19,11 +19,7 @@ Bottom line, finish ***the last mile*** of user search journey, by providing ans
 ##  To use this app
 1. packages needed:
     ```
-    /usr/local/bin/python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html  Jinja2
-    /usr/local/bin/python3 -m pip install py-pdf-parser\[dev\]
-    /usr/local/bin/python3 -m pip install cython
-    brew install python-tk@3.9
-    brew install freetype imagemagick
+    /usr/local/bin/python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html py-pdf-parser Jinja2
    ```
 2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY (with your OpenAI account) should be set up beforehand.
 3. the app has coded in [OpenAI rate limit](https://platform.openai.com/docs/guides/rate-limits/overview), based on ***pay-as-you-go*** plan.

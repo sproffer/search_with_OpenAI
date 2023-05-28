@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/local/bin/python3.11
 import time, sys, traceback, json
 from openaifuncs import get_embedded_dataframe, get_answer
 from commonfuncs import log
