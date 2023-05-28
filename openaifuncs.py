@@ -1,55 +1,66 @@
 #!/usr/local/bin/python3
+import json
+
 import tiktoken, time, openai, os, sys, random
 import pandas as pd
 import numpy as np
 from openai.embeddings_utils import get_embedding, cosine_similarity
 from pandarallel import pandarallel
-from commonfuncs import log, getfilenamehash, getasyncwebresponses
-from webpagedigest import extractcontents, getbingsearchlinks
+from commonfuncs import log, getFilenameHash, getAsyncWebResponses
+from webpagedigest import extractWebContents, getBingSearchLinks
 
 maxsectionlength =  8000 # about 2000 tokens, given 4K token limit
 mincontentoverlap = 800  # about 100 words, enough to not break up a logical continuous sentence in English
 ignorelength =  30   # indexed content should have more than min content length
 
-langmodel = "gpt-3.5-turbo"
+lang_model = "gpt-3.5-turbo"
+embedding_model="text-embedding-ada-002"
+embedding_encoding="cl100k_base"  # this the encoding for text-embedding-ada-002
+def get_embedded_dataframe(webs=[], searchphrase="", filename=""):
+    """
+    From a user question, or a list of web URLs, retrieve web contents
+    and then put into a dataframe, along with OpenAI embedding
 
-# to create data frame file with embedding in it
-# either provide a list of web pages to get contents,
-# or a user question that would trigger Bing search to get a list of web pages.
-def get_embedded_dataframe(webs, userquestion="", usecontent=False, filename=""):
+    :param webs:    a list of web URLs; use either webs or userquestion, but not both
+    :param searchphrase:   search phrase that would trigger Bing search to get a list of web URLs
+    :param filename:   dataframe filename, as processed data store. If the file exists, the file content is returned.
+    :return:  a dataframe with OpenAI embedding:  columns=['webpage', 'subject', 'content', 'combined', 'embedding']
+    """
     searchwebs = webs.copy()
     embeddingfilename = filename
     if len(filename) > 5:
         fparts = filename.split("/")
         hashstr = fparts[len(fparts)-1]
     else:
-        hashstr = getfilenamehash(webs, userquestion)
+        hashstr = getFilenameHash(webs, searchphrase)
         embeddingfilename = "/tmp/web-" + hashstr + ".csv"
 
     alreadyembedded = os.path.isfile(embeddingfilename)
     if alreadyembedded == False:
         if len(searchwebs) < 1:
-            if  userquestion != None and len(userquestion) > 3:
+            if  searchphrase != None and len(searchphrase) > 3:
                 # do bing search to get webs
-                searchwebs = getbingsearchlinks(userquestion)
+                searchwebs = getBingSearchLinks(searchphrase, numresults=16)
             else:
                 raise Exception("Cannot generate embedding, missing list of webs or user question.")
 
         log("Load " + str(len(searchwebs)) + " webpages, render and collect contents..." + (" " * 40), endstr="\r")
-        results = getasyncwebresponses(searchwebs)
+        results = getAsyncWebResponses(searchwebs)
         log("Parse and break contents into data frames" + (" " * 30), endstr="\r")
-        df = extractcontents(searchwebs, results, maxsectionlength, ignorelength, mincontentoverlap)
-        #global start_timer
-        #start_timer = time.time()
-        #global global_counter
-        #global_counter = 0
-        #log("Start generating embeddings" + (" " * 20), endstr="\r")
-        #if usecontent == True:
-        #    df["embedding"] = df.content.apply(lambda x: rate_limit_embeddings(x))
-        #else:
-        #    df["embedding"] = df.combined.apply(lambda x: rate_limit_embeddings(x))
-        #log("." * (int(global_counter/20) + 3) + "  ")
-        #time.sleep(1)
+        df = extractWebContents(searchwebs, results, maxsectionlength, ignorelength, mincontentoverlap)
+        global start_timer
+        start_timer = time.time()
+        global global_counter
+        global_counter = 0
+        log("Start generating embeddings" + (" " * 20), endstr="\r")
+        df["embedding"] = df.combined.apply(lambda x: rate_limit_embeddings(x))
+        time.sleep(0.5)
+        #  count number of tokens, put into second column
+        #
+        # embedding model parameters
+        encoding = tiktoken.get_encoding(embedding_encoding)
+        df["n_tokens"] = df.combined.apply(lambda x: len(encoding.encode(x)))
+        time.sleep(1)
         log("Finished embedding - hash=" + hashstr + (" " * 40))
         df.to_csv(embeddingfilename, sep="\t")
         time.sleep(2)
@@ -71,7 +82,7 @@ rate_period = 10
 request_counter = 0
 global_counter = 0
 start_timer = time.time()
-def rate_limit_embeddings(text, model="text-embedding-ada-002"):
+def rate_limit_embeddings(text, model=embedding_model):
     if text == None or len(text) < 2:
         return 0.0
 
@@ -87,7 +98,7 @@ def rate_limit_embeddings(text, model="text-embedding-ada-002"):
         start_timer = time.time()
         request_counter = 0
     if request_counter >= rate_limit and int(duration) <= rate_period:
-        sleep_for = rate_period - int(duration)
+        sleep_for = rate_period - int(duration) + 1
         log("Rate limit wait " + str(sleep_for) + " seconds ", endstr="\r")
         time.sleep(sleep_for)
         start_timer = time.time()
@@ -97,10 +108,10 @@ def rate_limit_embeddings(text, model="text-embedding-ada-002"):
         global_counter +=1
     # print dots for progress, and wipe out at least next 50 characters
     numdots = int(global_counter/20) + 1
-    numspaces = 1
-    if numdots < 50:
-        numspaces = 50 - numdots
-    log("embedding " + str(global_counter) + "." * numdots + (" " * numspaces), endstr="\r")
+    numspaces = 4
+    if numdots < 60:
+        numspaces = 64 - numdots
+    log("embedding " + str(global_counter) + "   " + ("." * numdots) + (" " * numspaces), endstr="\r")
     return get_embedding(text, engine=model)
 
 
@@ -110,7 +121,7 @@ def search_embedding(df, input_text, top_n=5):
     # generate embeddings for input text
     searchword = get_embedding(
         input_text,
-        engine="text-embedding-ada-002"
+        engine=embedding_model
     )
 
     #### compare inputed embedding with combined embeddeing, get consine similarity
@@ -130,15 +141,26 @@ def search_for_answer(row):
         {"role": "system", "content": "Context : " + row["content"]},
         {"role": "user", "content": userq}
     ]
-    response = openai.ChatCompletion.create(
-        model=langmodel,
-        messages=promptmsg,
-        temperature=0.0,
-        max_tokens=1000,
-        n=1
-    )
-    log(" query "+ langmodel + " with " + str(row["n_tokens"]) + " tokens " + ("." * (global_counter * 2)), endstr="\r")
+    log(" query "+ lang_model + " with " + str(row["n_tokens"]) + " tokens " + ("." * (global_counter * 2)), endstr="\r")
+    response = None
+
+    c = 0;
+    while (response == None) and (c < 4):
+        try:
+            response = openai.ChatCompletion.create(
+                model=lang_model,
+                messages=promptmsg,
+                temperature=0.0,
+                max_tokens=1000,
+                n=1
+            )
+        except Exception as ex:
+            c = c + 1
+            log(f" failed to query {lang_model} with {ex}; sleep {(c * 10)} seconds and do again", outfile=sys.stderr)
+            time.sleep(c * 10)
     global_counter +=1
+    if response == None:
+        return row["webpage"] + "===>" + "None"
     return row["webpage"] + "===>" + response.choices[0].message["content"]
 
 def summarize_answer(userq, resstr):
@@ -165,7 +187,7 @@ def summarize_answer(userq, resstr):
             {"role": "user", "content": userq}
         ]
     response = openai.ChatCompletion.create(
-        model=langmodel,
+        model=lang_model,
         messages=promptmsg,
         temperature=temp,
         max_tokens=1800,
@@ -173,7 +195,7 @@ def summarize_answer(userq, resstr):
     )
     return prefixstr + response.choices[0].message["content"]
 
-def get_answer(df, userq, top_n=5):
+def get_answer(df, userq, top_n=6):
     global global_counter
     parallel_num=2
     if os.cpu_count() > 4:

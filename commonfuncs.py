@@ -2,8 +2,9 @@ import sys, time, hashlib, asyncio
 from requests_html import AsyncHTMLSession
 
 def canonicalize(userq):
-    """"
+    """
     canonicalize a string, lower-cased, alpha-numeric character sequence. all other characters are stripped.
+
     :param userq:  a string of user question
     :return:  a canonicalized string
     """
@@ -14,9 +15,10 @@ def canonicalize(userq):
     retstr = ''.join(c for c in lowerq if c.isalnum())
     return retstr
 
-def getfilenamehash(webpages, questionstr):
+def getFilenameHash(webpages, questionstr):
     """
-    Generate a filename which is consistent for the list of webpages or user question
+    Generate a hash string for the list of webpages or user question.  The hash is the same for the same input parameters.
+
     :param webpages:   a list of weburls
     :param questionstr:  user question
     :return:   a hash string based on webpages or questionstr
@@ -24,21 +26,21 @@ def getfilenamehash(webpages, questionstr):
     #  for user question, allow user typing variances (extra space), still recognized as the same question
     hashstr = canonicalize(questionstr)
     if webpages != None and len(webpages) > 0:
-        hashstr = str(webpages)
+        hashstr = canonicalize(str(webpages))
 
-    #  string function hash(..) will yield different results in different executions, so use sha512 digest
+    #  string function hash(..) will yield different results in different executions, use sha512 digest
     hashstrencoded = hashstr.encode('utf-8')
     retstr = hashlib.sha512(hashstrencoded).hexdigest()[:16]
     return retstr
 
-async def retrieve_webpage(url):
+async def retrieveWebpage(url):
     try:
         session = AsyncHTMLSession()
 
         # use custom user-agent
         customUA = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 GZPython3/OpenAI'}
         # set connect timeout and read timeout, in seconds
-        r = await session.get(url, headers=customUA, timeout=(2.5, 10.0))
+        r = await session.get(url, headers=customUA, timeout=(2, 10.0))
         ct = r.headers['Content-Type']
         if 'text/html' in ct:
             try:
@@ -47,7 +49,7 @@ async def retrieve_webpage(url):
                 # JS render will launch chrome driver, allow longer time (20 sec)
                 await r.html.arender(wait=1.5, timeout=20)
             except Exception as renderErr:
-                log(f'Failed to render {url[:70]}: {renderErr= }, use raw content', outfile=sys.stderr)
+                log(f'Failed to render {url[:70]}: {renderErr}, use raw content\n', outfile=sys.stderr)
         await session.close()
         log(f"retrieved  {url[:60]}" + (" " * 30), endstr="\r")
         return r
@@ -55,26 +57,28 @@ async def retrieve_webpage(url):
         log(f"FAILED to load {url[:70]} -- {err}\n", outfile=sys.stderr)
         return None
 
-async def batchtasks(webs):
-    tasks = (retrieve_webpage(url) for url in webs)
+async def batchTasks(webs):
+    tasks = (retrieveWebpage(url) for url in webs)
     return await asyncio.gather(*tasks)
 
-def getasyncwebresponses(urls):
+def getAsyncWebResponses(urls):
     """
-    With a list of urls, asynchronousely/parallelly retrieve http response
+    With a list of urls, asynchronously retrieve http response
     return a list of html response objects.
+
     :param urls:  a list of URLs
     :return:     a list of request-html response object
     """
-    responses = asyncio.run(batchtasks(urls))
+    responses = asyncio.run(batchTasks(urls))
     return responses
 
 
 def log(msg, endstr="\n", outfile=sys.stdout):
     """
-    log message on outfile (default sys.stdout)
+    log message on outfile (default sys.stdout), with choice of overwrite previous message or start a new line.
+
     :param msg:   the message to be logged
-    :param endstr:   '\r' or '\n' (default), for overwriting current line or start a new line
+    :param endstr:  if specified as \\r, overwrite previous line
     :param outfile:  output file, default is sys.stdout
     """
     currtime = time.localtime()

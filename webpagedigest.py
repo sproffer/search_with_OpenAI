@@ -11,7 +11,7 @@
 from py_pdf_parser.loaders import load_file
 import pandas as pd
 from bs4 import BeautifulSoup
-from commonfuncs import log, getasyncwebresponses
+from commonfuncs import log, getAsyncWebResponses
 import sys, traceback, urllib.parse
 
 def updateHeaderRow(df, sizenum, lengthnum):
@@ -25,18 +25,20 @@ def updateHeaderRow(df, sizenum, lengthnum):
     else:
         df.loc[len(df.index)] = [sizenum, lengthnum, 1]
 
-def combined_len(row):
+def combinedlen(row):
     return row['length'] * row['count']
 
-def build_headerdata(pdfdoc, headermaxlen=200, ignorelen=10, ignorecombinedlen=20):
+def buildPdfHeaderMapping(pdfdoc, headermaxlen=200, ignorelen=10, ignorecombinedlen=20):
     """
-    Parse document to establish header mapping (based on font size)
-        [font_size, max_length, count, combined_len, typecol]
+    Parse a PDF document to establish header mapping, based on font size.
+    the returned dataframe has mapping of font_size and typecol (h1, h2, h3, text),
+    all other contents should be discarded.
+
     :param pdfdoc:   the PDF document
-    :param headermaxlen:  max length that can be considered as header
-    :param ignorelen:     any section less than this is discoarded, to ignore such things as page numbers
-    :param ignorecombinedlen:  any section with combined length less than this, is discarded
-    :return:   dataframe font_size and typecol (with 'h1', 'h2', 'h3', 'text')
+    :param headermaxlen:  max length (# char) that can be considered as header
+    :param ignorelen:     any non-header section less than this is discarded, to ignore such things as page numbers
+    :param ignorecombinedlen:  any non-header section with combined length less than this, is discarded
+    :return:   dataframe columns=['font_size', 'length', 'count', 'combined_len', 'typecol']
     """
 
     headerdf = pd.DataFrame(None, columns=['font_size', 'length', 'count'])
@@ -48,7 +50,7 @@ def build_headerdata(pdfdoc, headermaxlen=200, ignorelen=10, ignorecombinedlen=2
 
     sortdf = headerdf.sort_values(by="font_size", ascending=False)
     sortdf = sortdf.reset_index(drop=True)
-    sortdf['combined_len'] = sortdf.apply(combined_len, axis=1)
+    sortdf['combined_len'] = sortdf.apply(combinedlen, axis=1)
     stoph = False
     typecol = ['h1']
     for i in sortdf.index:
@@ -92,6 +94,7 @@ def concatstrings(strarray):
 def addrows(df, weburl, subjectstr, contentstr, maxcontentlength, ignorelength, mincontentoverlap):
     """
     add rows to dataframe, break contents into multiple rows if exceeding max number of tokens for GTP3
+
     :param df:    dataframe to add rows to
     :param weburl:  web url
     :param subjectstr:   Subject column
@@ -138,7 +141,7 @@ def parsepdf(df, weburl, pdffile, maxcontentlength=8000, ignorelength=30, mincon
     :return:    updated dataframe with this PDF file:  DataFrame(None, columns=['webpage', 'subject', 'content', 'combined'])
     """
     pdfdoc = load_file(pdffile)
-    headerdf = build_headerdata(pdfdoc)
+    headerdf = buildPdfHeaderMapping(pdfdoc)
     #write(headerdf.to_string())
     h1 = ''
     h2 = ''
@@ -249,16 +252,16 @@ def parsehtml(df, weburl, htmltext, maxcontentlength=8000, ignorelength=30, minc
     df = addrows(df, weburl, key, contentstr, maxcontentlength, ignorelength, mincontentoverlap)
     return(df)
 
-def extractcontents(webs, responses, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
+def extractWebContents(webs, responses, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
     """
-    given a list of web URLs and a list of Response object, extract contents and write into dataframe
+    given a list of web URLs and a list of Response object, extract contents and put into dataframe
+
     :param webs:              a list of web urls
     :param responses:         a list of response objects
     :param maxcontentlength:  max # of chars, longer contents will be broken into multiple
     :param ignorelength:      ignore short content, in chars
     :param mincontentoverlap: requires minimum # of chars overlap when breaking up contents
-    :return:  dataframe, with extracted contents in the format of
-     pd.DataFrame(None, columns=['webpage', 'subject', 'content', 'combined'])
+    :return:  dataframe, with extracted contents  columns=['webpage', 'subject', 'content', 'combined'])
     """
 
     df = pd.DataFrame(None, columns=['webpage', 'subject', 'content', 'combined'])
@@ -294,16 +297,17 @@ def extractcontents(webs, responses, maxcontentlength=8000, ignorelength=30, min
     #df["n_tokens"] = df.combined.apply(lambda x: len(encoding.encode(x)))
     return df
 
-def getbingsearchlinks(userquestion, numresults=10):
+def getBingSearchLinks(searchphrase, numresults=10):
     """
     Search BING with a search phrase, return a list of URLs.
     Ignore ads, and other URLs, just the main page URLs from Bing algorithm
-    :param userquestion:  the search query to Bing
+
+    :param searchphrase:  the search query to Bing
     :param numresults:   the number of URLs returned, default 10 - first Bing page
     :return:  a list of URLs in string format
     """
     webs = []
-    qstr=urllib.parse.quote(userquestion, safe='')
+    qstr=urllib.parse.quote(searchphrase, safe='')
     srch1 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=1"
     srch2 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=2"
     srch3 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=3"
@@ -314,8 +318,8 @@ def getbingsearchlinks(userquestion, numresults=10):
     elif numresults > 10:
         srchs = [srch1, srch2]
 
-    log(f" run Bing search ...  {userquestion}" + (" " * 20), endstr="\r")
-    results = getasyncwebresponses(srchs)
+    log(f" run Bing search ...  {searchphrase}" + (" " * 20), endstr="\r")
+    results = getAsyncWebResponses(srchs)
     for aresult in results:
         contents = aresult.html.html
         try:
