@@ -1,42 +1,17 @@
 #!/usr/local/bin/python3
-import asyncio, tiktoken, time, datetime, openai, os, sys, random, urllib.parse
-import hashlib
-
+import tiktoken, time, openai, os, sys, random
 import pandas as pd
 import numpy as np
-from bs4 import BeautifulSoup
-from requests_html import AsyncHTMLSession
 from openai.embeddings_utils import get_embedding, cosine_similarity
 from pandarallel import pandarallel
-from commonfuncs import log, getfilenamehash
-from webpagedigest import extractcontents
+from commonfuncs import log, getfilenamehash, getasyncwebresponses
+from webpagedigest import extractcontents, getbingsearchlinks
 
-maxsectionlength = 2000  # about 500 tokens
-minsectionoverlap = 400  # about 100 tokens
-mincontentlength = 30    # indexed content has to have more than min content length
-# use custom user-agent
-customUA = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 GZPython3/OpenAI'}
+maxsectionlength =  8000 # about 2000 tokens, given 4K token limit
+mincontentoverlap = 800  # about 100 words, enough to not break up a logical continuous sentence in English
+ignorelength =  30   # indexed content should have more than min content length
+
 langmodel = "gpt-3.5-turbo"
-
-async def retrieve_webpage(url):
-    try:
-        session = AsyncHTMLSession()
-        r = await session.get(url, headers=customUA, timeout=10000)
-        ct = r.headers['Content-Type']
-        if 'text/html' in ct:
-            await r.html.arender(wait=5, timeout=20000)
-        else:
-            log(f' skip html rendering for {url=}      ', endstr='\r')
-        await session.close()
-        log("  retrieved  " + url[:45] + "...       ", endstr="\r")
-        return r
-    except Exception as err:
-        print(f"FAILED to load {url} -- {err}", file=sys.stderr)
-        return None
-
-async def batchtasks(webs):
-    tasks = (retrieve_webpage(url) for url in webs)
-    return await asyncio.gather(*tasks)
 
 # to create data frame file with embedding in it
 # either provide a list of web pages to get contents,
@@ -56,14 +31,14 @@ def get_embedded_dataframe(webs, userquestion="", usecontent=False, filename="")
         if len(searchwebs) < 1:
             if  userquestion != None and len(userquestion) > 3:
                 # do bing search to get webs
-                searchwebs = get_search_links(userquestion)
+                searchwebs = getbingsearchlinks(userquestion)
             else:
                 raise Exception("Cannot generate embedding, missing list of webs or user question.")
 
-        log("Read " + str(len(searchwebs)) + " webpages, render and collect contents..." + (" " * 20), endstr="\r")
-        results = asyncio.run(batchtasks(searchwebs))
-        log("Parse and break contents into data frames" + (" " * 20), endstr="\n")
-        df = extractcontents(searchwebs, results)
+        log("Load " + str(len(searchwebs)) + " webpages, render and collect contents..." + (" " * 40), endstr="\r")
+        results = getasyncwebresponses(searchwebs)
+        log("Parse and break contents into data frames" + (" " * 30), endstr="\r")
+        df = extractcontents(searchwebs, results, maxsectionlength, ignorelength, mincontentoverlap)
         #global start_timer
         #start_timer = time.time()
         #global global_counter
@@ -75,7 +50,7 @@ def get_embedded_dataframe(webs, userquestion="", usecontent=False, filename="")
         #    df["embedding"] = df.combined.apply(lambda x: rate_limit_embeddings(x))
         #log("." * (int(global_counter/20) + 3) + "  ")
         #time.sleep(1)
-        log("Finished embedding - hash=" + hashstr + (" " * 20))
+        log("Finished embedding - hash=" + hashstr + (" " * 40))
         df.to_csv(embeddingfilename, sep="\t")
         time.sleep(2)
         outdf = pd.read_csv(embeddingfilename, sep="\t")
@@ -178,7 +153,7 @@ def summarize_answer(userq, resstr):
     ]
     if len(resstr.strip()) < 10:
         #  use sarcastic tune occasionally, and raise temprature to allow some varieties
-        ri = random.randint(1,5)
+        ri = random.randint(1,3)
         temp=0.2
         prefixstr = "(OpenAI) "
         promptsuffix = ""
@@ -234,28 +209,4 @@ def get_answer(df, userq, top_n=5):
     answerobj = {"answer": fanswer, "references": refs}
     return answerobj
 
-# take user questions, run Bing search, and get first 2 pages of URLs, excluding ads
-def get_search_links(userquestion):
-    webs = []
-    qstr=urllib.parse.quote(userquestion, safe='')
-    srch1 = "https://www.bing.com/search?q=" + qstr + "rdr=1&first=1"
-    srch2 = "https://www.bing.com/search?q=" + qstr + "rdr=1&first=2"
-    srchs = [ srch1, srch2 ]
-    log("run Bing search ...    ", endstr="\r")
-    result = asyncio.run(batchtasks(srchs))
-    contents1 = result[0].html.html
-    contents2 = result[1].html.html
-    try:
-        log("parse search results... " + (" " * 20), endstr="\r")
-        for b_algo in BeautifulSoup(contents1, 'html.parser').find("div", id="b_content").find_all("li", class_="b_algo"):
-            s1 = BeautifulSoup(str(b_algo), 'html.parser')
-            bhref = s1.find('a')["href"]
-            webs.append(str(bhref))
-        for b_algo in BeautifulSoup(contents2, 'html.parser').find("div", id="b_content").find_all("li", class_="b_algo"):
-            s1 = BeautifulSoup(str(b_algo), 'html.parser')
-            bhref = s1.find('a')["href"]
-            webs.append(str(bhref))
-    except Exception as err:
-        log(f"Unexpected {err=}, {type(err)=}", sys.stderr)
-    return webs[:6]
 

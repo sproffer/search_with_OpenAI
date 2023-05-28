@@ -1,7 +1,7 @@
 #!/usr/local/bin/python3
 import os, time, json, openai, sys, traceback, asyncio
 import pandas as pd
-from websearchfuncs import get_embedded_dataframe, get_answer
+from openaifuncs import get_embedded_dataframe, get_answer
 from commonfuncs import log
 
 userquestion = ""

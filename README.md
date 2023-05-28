@@ -17,9 +17,14 @@ Bottom line, finish ***the last mile*** of user search journey, by providing ans
 5. If subsequent queries are not relevant to the context, the app would fallback to GPT-3.5 for answer.
 
 ##  To use this app
-1. packages needed:   
-```python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html  Jinja2```
-2. commfuncs.pyc is compiled with Python 3.11.
+1. packages needed:
+    ```
+    /usr/local/bin/python3 -m pip install  pandas openai tiktoken  matplotlib plotly scikit-learn pandarallel  requests-html  Jinja2
+    /usr/local/bin/python3 -m pip install py-pdf-parser\[dev\]
+    /usr/local/bin/python3 -m pip install cython
+    brew install python-tk@3.9
+    brew install freetype imagemagick
+   ```
 2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY (with your OpenAI account) should be set up beforehand.
 3. the app has coded in [OpenAI rate limit](https://platform.openai.com/docs/guides/rate-limits/overview), based on ***pay-as-you-go*** plan.
 4. answers from OpenAI was set up to randomly include sarcastic tones, to lift my mood during long arduous language model analysis. 
