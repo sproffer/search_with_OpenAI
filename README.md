@@ -54,7 +54,7 @@ Set up personalized knowledgebase, and hence have the answers tailored to indivi
 
 A user has the flexibilty to build up personalized knowledgebase, 
 including medical records (treatment and prevention), your favorite bible or books reflecting your moral compass, 
- materials reflecting your cultural background and traditions.  To make the response of a search (such as below) more suitable to the user.
+ materials reflecting your cultural background and traditions.  Make the response of a search (such as below) more suitable to the user.
 ##### What is a healthy diet? 
 ##### Should I eat pork or beef?  Should I eat fish?
 ##### How to compare gas stove vs electric stove, which one is better?
