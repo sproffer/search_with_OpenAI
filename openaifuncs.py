@@ -1,5 +1,3 @@
-import json
-
 import tiktoken, time, openai, os, sys, random
 import pandas as pd
 import numpy as np
@@ -167,14 +165,14 @@ def summarize_answer(userq, resstr):
 
     prefixstr = ""
     temp=0.0
-    systemprompt = "Please use context to answer question of " + userq
+    systemprompt = "Use provided context to answer question, provided context:  " + usercontext
     promptmsg=[
         {"role": "system", "content": systemprompt},
-        {"role": "user", "content": "Context: " +  usercontext + "   Question: " + userq}
+        {"role": "user", "content": "Question: " + userq}
     ]
     if len(resstr.strip()) < 10:
-        #  use sarcastic tune occasionally, and raise temprature to allow some varieties
-        ri = random.randint(1,3)
+        #  use sarcastic tune occasionally, and raise temperature to allow some varieties
+        ri = random.randint(1,4)
         temp=0.2
         prefixstr = "(OpenAI) "
         promptsuffix = ""
@@ -208,7 +206,7 @@ def get_answer(df, userq, top_n=6):
     topgooddf = topdf.loc[topdf["similarity"] >= 0.8 ]   # only use high similarity items
     useOpenAI = ""
     if len(topgooddf.index) > 0:
-        log("selected " + str(len(topgooddf.index)) + " (among " + str(len(df.index)) + ") relevant sections to generate answers...")
+        log("selected " + str(len(topgooddf.index)) + " (among " + str(len(df.index)) + ") most relevant sections to generate answers...")
     else:
         log("no relevant data from your materials, use OpenAI to generate answers...")
 
