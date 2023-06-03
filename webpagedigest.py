@@ -1,8 +1,8 @@
 #
-#  Parse PDF files from command line arguments and puyt into Pandas DataFrame
+#  Parse HTML or PDF web contents and put into Pandas DataFrame
 #
-#  package installed: (version lagging for python3.11)
-#     /usr/local/bin/python3 -m pip install py-pdf-parser\[dev\]
+#  package installed: 
+#     /usr/local/bin/python3 -m pip install py-pdf-parser beautifulsoup4
 #
 from py_pdf_parser.loaders import load_file
 import pandas as pd
