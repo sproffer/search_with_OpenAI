@@ -45,6 +45,8 @@ A table could be interpreted horizontally or virtically, how to improve the code
 ### multimodal contents
 In many documents, a diagram or image could carry a lot of information, how to get the information from graphs, and make it part of the knowledgebase.
 
+### better embedding and similarity search
+There are some amiss in current code. In [my example](https://youtu.be/LoG6fMjZQ7o?t=141), with embedded contents related to AI transformer. And a user changed the subject, started to searching for "movie transformers".  The algorithm found several matchings, it shouldn't be.  Any better libraries to create embeddings and cosine similarity, or anyway to train/fine-tune embedding and matching algorithm, in my case, I would find a way to guide attention to word *movie*.
 
 ## Possible application on top of this - personalized responses
 The software could have a set of knowledges and attempt to provide answers with preference of local knowledge, before falling back to OpenAI answer.
