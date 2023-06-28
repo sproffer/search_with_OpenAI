@@ -69,7 +69,7 @@ def getAsyncWebResponses(urls):
     :param urls:  a list of URLs
     :return:     a list of request-html response object
     """
-    responses = asyncio.run(batchTasks(urls))
+    responses = asyncio.run(batchTasks(urls), debug=True)
     return responses
 
 

@@ -24,7 +24,7 @@ def updateHeaderRow(df, sizenum, lengthnum):
 def combinedlen(row):
     return row['length'] * row['count']
 
-def buildPdfHeaderMapping(pdfdoc, headermaxlen=200, ignorelen=10, ignorecombinedlen=20):
+def buildPdfHeaderMapping(pdfdoc, headermaxlen, ignorelen, ignorecombinedlen):
     """
     Parse a PDF document to establish header mapping, based on font size.
     the returned dataframe has mapping of font_size and typecol (h1, h2, h3, text),
@@ -111,34 +111,54 @@ def addrows(df, weburl, subjectstr, contentstr, maxcontentlength, ignorelength, 
 #   each with max length, and between strings with minimum overlap, in characters
 #   safety check:
 #       max length should be greater than minimum overlap by more than 20 chars
-def splitstring(nStr, maxLen=2000, minOverlap=200):
-    if maxLen < (minOverlap + 20):
-        raise Exception("max length (" + str(maxLen) +") should be greater than minimum overlap ("+ str(minOverlap) + ") by more than 20 chars")
+def splitstring(nStr, maxLen=8000, minOverlap=200):
+    if maxLen < (minOverlap * 4):
+        raise Exception("max length (" + str(maxLen) +") should be greater than minimum overlap ("+ str(minOverlap) + ") by more than 4 times")
     retList = []
+    inneradded = False
     while len(nStr) > maxLen:
         p1 = maxLen - 1
-        while nStr[p1] != ' ' and p1 > 0:
-            p1 = p1 - 1
-        retList.append(nStr[0:p1])
-        p2 = p1 - minOverlap
-        while nStr[p2] != ' ' and p2 > 1:
-            p2 = p2 -1
-        nStr = nStr[p2+1:]
+        inneradded = False
+        while p1 > (maxLen - minOverlap * 2) and inneradded == False:
+            if nStr[(p1-2):p1] == '. ':
+                retList.append(nStr[0:p1-1].strip())
+                inneradded = True
+            elif p1 < maxLen - minOverlap and nStr[p1] == ' ':
+                # after progressing an overlap length, space for break is also OK
+                retList.append(nStr[0:p1].strip())
+                inneradded = True
+            else:
+                p1 = p1 - 1
 
-    retList.append(nStr)
+        if inneradded == False:
+            #  hard cut-off, after moving back twice minOverlap position, should not happen
+            if p1 > 30 and len(nStr) > p1 + 25:
+                log(f'Break at an unnatural place, with "{nStr[(p1-25):p1]}"|"{nStr[p1:(p1+25)]}" ==> {minOverlap=} is too small.', outfile=sys.stderr)
+            retList.append(nStr[0:p1].strip())
+        p2 = p1 - minOverlap
+        if (p2 < 0):
+            nStr = nStr[1:]
+        else:
+            while p2 > 4 and nStr[p2] != ' ':
+                p2 = p2 -1
+            nStr = nStr[p2:]
+
+    retList.append(nStr.strip())
     return retList
 
-def parsepdf(df, weburl, pdffile, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
+def parsepdf(df, weburl, pdffile, maxcontentlength, ignorelength, mincontentoverlap):
     """
     parse a PDF file and add contents to the dataframe
     :param df:     existing dataframe, could already have data
+    :param weburl:  the URL (or file location) from which this pdf is retrieved.
     :param pdffile:   pdffile name
-    :param viewpdf:   whether to launch a PDF visualize, default is False.
+    :param maxcontentlength:  max # of chars, longer contents will be broken into multiple
+    :param ignorelength:      ignore short content, in chars
+    :param mincontentoverlap: requires minimum # of chars overlap when breaking up contents
     :return:    updated dataframe with this PDF file:  DataFrame(None, columns=['webpage', 'subject', 'content', 'combined'])
     """
     pdfdoc = load_file(pdffile)
-    headerdf = buildPdfHeaderMapping(pdfdoc)
-    #write(headerdf.to_string())
+    headerdf = buildPdfHeaderMapping(pdfdoc, headermaxlen=200, ignorelen=10, ignorecombinedlen=ignorelength)
     h1 = ''
     h2 = ''
     h3 = ''
@@ -191,7 +211,7 @@ def addpdfrows(df, weburl, h1, h2, h3, concattext, maxcontentlength, ignorelengt
     df = addrows(df, weburl, key, concattext, maxcontentlength, ignorelength, mincontentoverlap)
     return(df)
 
-def parsehtml(df, weburl, htmltext, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
+def parsehtml(df, weburl, htmltext, maxcontentlength, ignorelength, mincontentoverlap):
     # assume we always have h1
     h1str=''
     h2str=''
