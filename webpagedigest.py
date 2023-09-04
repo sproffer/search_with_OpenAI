@@ -116,10 +116,15 @@ def splitstring(nStr, maxLen=8000, minOverlap=200):
         raise Exception("max length (" + str(maxLen) +") should be greater than minimum overlap ("+ str(minOverlap) + ") by more than 4 times")
     retList = []
     inneradded = False
-    while len(nStr) > maxLen:
+    while len(nStr.encode('utf-8')) > maxLen:
         p1 = maxLen - 1
         inneradded = False
         while p1 > (maxLen - minOverlap * 2) and inneradded == False:
+            ## safety check for non-ascii
+            if len(nStr[0:p1-1].encode('utf-8')) > maxLen:
+                p1 = int(p1 / 2) + 2
+                log(f"splitstring, non-ascii makes more bytes, split at half: {nStr[0:120]}....      ", endstr="\r")
+
             if nStr[(p1-2):p1] == '. ':
                 retList.append(nStr[0:p1-1].strip())
                 inneradded = True

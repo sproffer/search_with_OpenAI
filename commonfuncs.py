@@ -1,18 +1,18 @@
-import sys, time, hashlib, asyncio
+import sys, time, hashlib, asyncio, traceback
 from requests_html import AsyncHTMLSession
 
-def canonicalize(userq):
+def canonicalize(userstr):
     """
     canonicalize a string, lower-cased, alpha-numeric character sequence. all other characters are stripped.
 
-    :param userq:  a string of user question
+    :param userstr:  a string of user question
     :return:  a canonicalized string
     """
-    if userq == None or len(userq) < 2:
+    if userstr == None or len(userstr) < 2:
         return ""
 
-    lowerq = userq.lower()
-    retstr = ''.join(c for c in lowerq if c.isalnum())
+    lowerstr = userstr.lower()
+    retstr = ''.join(c for c in lowerstr if c.isalnum())
     return retstr
 
 def getFilenameHash(webpages, questionstr):
@@ -40,7 +40,7 @@ async def retrieveWebpage(url):
         # use custom user-agent
         customUA = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 GZPython3/OpenAI'}
         # set connect timeout and read timeout, in seconds
-        r = await session.get(url, headers=customUA, timeout=(2, 10.0))
+        r = await session.get(url, headers=customUA, timeout=(4, 20.0))
         ct = r.headers['Content-Type']
         if 'text/html' in ct:
             try:
@@ -49,12 +49,14 @@ async def retrieveWebpage(url):
                 # JS render will launch chrome driver, allow longer time (20 sec)
                 await r.html.arender(wait=1.5, timeout=20)
             except Exception as renderErr:
-                log(f'Failed to render {url[:70]}: {renderErr}, use raw content\n', outfile=sys.stderr)
+                log(f'Failed to render {url}: {renderErr}, use raw content\n', outfile=sys.stderr)
+                traceback.print_exc(limit=6, file=sys.stderr, chain=True)
         await session.close()
-        log(f"retrieved  {url[:60]}" + (" " * 30), endstr="\r")
+        log(f"Done loading {url[:80]}" + (" " * 10), endstr="\r")
         return r
     except Exception as err:
-        log(f"FAILED to load {url[:70]} -- {err}\n", outfile=sys.stderr)
+        log(f"FAILED to load {url=} -- {err}\n", outfile=sys.stderr)
+        traceback.print_exc(limit=8, file=sys.stderr, chain=True)
         return None
 
 async def batchTasks(webs):
