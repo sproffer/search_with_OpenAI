@@ -10,9 +10,9 @@ from webpagedigest import extractWebContents, extractWebContentsParallel, getBin
 #  OpenAI model and chunk size
 #
 lang_model = "gpt-3.5-turbo-16k"
-maxprompttokens     = 8000   # 10,000 tokens for user input/prompt size, there are extra text for context
-maxcompletiontokens = 4000    # 4,000 tokens for completion, given inputs taking up-to 10,000 tokens
-maxsectionlength    = 10000   # length in char, single letter words or non-ASCII chars with more bytes could still exceed 8191 tokens.
+maxprompttokens     = 10000   # 10,000 tokens for user input/prompt size, there are extra text for context
+maxcompletiontokens =  4000   # 4,000 tokens for completion, given inputs taking up-to 10,000 tokens
+maxsectionlength    = 24000   # length in char, single letter words or non-ASCII chars with more bytes could still exceed 8191 tokens.
 #lang_model = 'gpt-4'   # 8k model
 #maxprompttokens     = 4000   # max 4,000 tokens, including prompt and completion
 #maxcompletiontokens = 4000   # 4,000 tokens for completion only

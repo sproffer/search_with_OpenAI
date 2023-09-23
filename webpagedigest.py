@@ -110,43 +110,50 @@ def addrows(df, weburl, subjectstr, contentstr, maxcontentlength, ignorelength, 
             df.loc[len(df.index)] = [weburl, subjectstr, acontentstr, combinestr]
     return df
 
-#   a function to split a string into array of strings
-#   each with max length, and between strings with minimum overlap, in characters
-#   safety check:
-#       max length should be greater than minimum overlap by more than 20 chars
 def splitstring(nStr, maxLen=8000, minOverlap=200):
+    """
+    a function to split a string into array of strings with max length, and between strings with minimum overlap, in characters
+    safety check:
+        max length should be greater than 4 times of minimum overlap
+    :param nStr:  original string
+    :param maxLen:  maximum length (in character) for broken down strings
+    :param minOverlap: in between broken down strings, minimum overlap length (in character)
+    :return: array of strings
+    """
     if maxLen < (minOverlap * 4):
         raise Exception("max length (" + str(maxLen) +") should be greater than minimum overlap ("+ str(minOverlap) + ") by more than 4 times")
     retList = []
     while len(nStr.encode('utf-8')) > maxLen:
-        p1 = maxLen - 1
-        encodelonger = False
-        while p1 > (maxLen - minOverlap * 2) and encodelonger == False:
-            ## safety check for non-ascii
+        p1 = maxLen - 2
+        addedseg = False    # if true, exit from below loop
+        while p1 > (maxLen - minOverlap * 2) and addedseg == False:
+
             if len(nStr[0:p1-1].encode('utf-8')) > maxLen:
-                p1 = int(p1 / 2) + 2
-                log(f"splitstring, non-ascii makes more bytes, split at half: {nStr[0:120]}....      ", endstr="\r")
-                encodelonger = True
+                # for non-ascii text, move pointer back faster
+                p1 = p1 - int(minOverlap/4)
             elif nStr[(p1-2):p1] == '. ':
+                # best scenario, find full-stop to break
                 retList.append(nStr[0:p1-1].strip())
+                addedseg = True
             elif p1 < maxLen - minOverlap and nStr[p1] == ' ':
                 # after progressing an overlap length, space for break is also OK
                 retList.append(nStr[0:p1].strip())
+                addedseg = True
             else:
                 p1 = p1 - 1
 
-        if encodelonger == True:
+        if addedseg == False:
             #  hard cut-off, after moving back twice minOverlap position, should not happen
-            if p1 > 30 and len(nStr) > p1 + 25:
-                log(f'Break at an unnatural place, with "{nStr[(p1-25):p1]}"|"{nStr[p1:(p1+25)]}" ==> {minOverlap=} is too small.', outfile=sys.stderr)
+            log(f"break in un-natural place at {p1=}: {nStr[p1-10, p1+10]}" + (" " * 30), endstr="\n")
             retList.append(nStr[0:p1].strip())
         p2 = p1 - minOverlap
-        if (p2 < 0):
-            nStr = nStr[1:]
+        if (p2 <= 0):
+            log(f"p1 small {p1=}?      ", endstr="\n")
+            p2 = p1 - int(p1/2)
         else:
             while p2 > 4 and nStr[p2] != ' ':
                 p2 = p2 -1
-            nStr = nStr[p2:]
+        nStr = nStr[p2:]
 
     retList.append(nStr.strip())
     return retList
@@ -285,7 +292,7 @@ def parseWebContent(webpage, aresponse, df, maxcontentlength=8000, ignorelength=
     :return:  dataframe, with extracted contents  columns=['webpage', 'subject', 'content', 'combined'])
     """
     try:
-        log(f"{threading.current_thread().name} parsing web page {webpage[:80]}    ", endstr='\n')
+        log(f"{threading.current_thread().name} Parsing web page {webpage[:80]} ....     ", endstr='\n')
         if aresponse == None:
             log(f"Skip page {webpage[:80]}  with no response.        \n",  outfile=sys.stderr)
             return df
@@ -293,16 +300,19 @@ def parseWebContent(webpage, aresponse, df, maxcontentlength=8000, ignorelength=
         if 'text/html' in ct.lower():
             htmltext = aresponse.html.html
             df = parsehtml(df, webpage, htmltext, maxcontentlength, ignorelength, mincontentoverlap)
+            log(f"{threading.current_thread().name} Done parsing {webpage[:80]} .         ", endstr="\n")
         elif 'application/pdf' in ct.lower():
             pdffilename = '/tmp/web' + str(hash(webpage))+'.pdf'
             pdffile = open(pdffilename, 'wb')
             pdffile.write(aresponse.content)
             pdffile.close()
             df = parsepdf(df, webpage, pdffilename, maxcontentlength, ignorelength, mincontentoverlap)
+            log(f"{threading.current_thread().name} Done parsing {webpage[:80]} .         ", endstr="\n")
         else:
             log(f"Skip page {webpage[:80]} with unknown content type {ct}   \n", outfile=sys.stderr)
     except Exception as ex:
         log(f"Failed to parse web content for {webpage=}    ", endstr="\n", outfile=sys.stdout)
+        traceback.print_exc(limit=8, file=sys.stderr, chain=True)
 
     return df
 
@@ -401,23 +411,13 @@ def getBingSearchLinks(searchphrase, numresults=10):
     :param numresults:   the number of URLs returned, default 10 - first Bing page
     :return:  a list of URLs in string format
     """
-    # use smaller web pages to avoid out of memory errors
-    webs = ['https://downloads.regulations.gov/NTIA-2023-0005-0108/attachment_1.pdf',
-            'https://garyzhu.net/',
-            'https://www.garyzhu.net/notes/ZombieCookie.html',
-            'https://www.garyzhu.net/notes/SentientAI.html',
-            'https://garyzhu.net/notes.html',
-            'https://garyzhu.net/notes/Oracle_64.html',
-            'https://www.garyzhu.net/notes/LVM_Linux.html']
-    # webs = []
-    if len(webs) > 0:
-        return webs
 
     qstr=urllib.parse.quote(searchphrase, safe='')
     srch1 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=1"
     srch2 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=2"
     srch3 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=3"
 
+    webs = []
     srchs = [ srch1 ]
     if numresults > 20:
         srchs = [srch1, srch2, srch3]
@@ -429,7 +429,7 @@ def getBingSearchLinks(searchphrase, numresults=10):
     for aresult in results:
         contents = aresult.html.html
         try:
-            log(" parse Bing search results..." + (" " * 60), endstr="\r")
+            log(" parse Bing search results..." + (" " * 40), endstr="\r")
             # carefully skip Ads and other non-essential materials
             for b_algo in BeautifulSoup(contents, 'html.parser').find("div", id="b_content").find_all("li", class_="b_algo"):
                 s1 = BeautifulSoup(str(b_algo), 'html.parser')
@@ -443,7 +443,6 @@ def getBingSearchLinks(searchphrase, numresults=10):
                         break
 
         except Exception as err:
-            log(f"Unexpected {err=} when parsing Bing result\n", outfile=sys.stderr)
+            log(f"Unexpected {err=} when parsing Bing result", endstr="\n", outfile=sys.stdout)
             traceback.print_exc(limit=8, file=sys.stderr, chain=False)
     return webs[:numresults]
-    return webs
