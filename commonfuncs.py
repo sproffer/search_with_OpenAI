@@ -39,17 +39,19 @@ async def retrieveWebpage(url):
 
         # use custom user-agent
         customUA = {'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 GZPython3/OpenAI'}
-        # set connect timeout and read timeout, in seconds
-        r = await session.get(url, headers=customUA, timeout=(4, 20.0))
+        # set connect timeout and read timeout, in seconds, retreiev first page load
+        r = await session.get(url, headers=customUA, timeout=(4, 10.0))
         ct = r.headers['Content-Type']
         if 'text/html' in ct:
             try:
-                # to be safe, wait for 1.5 seconds (default 0.2) before calling JS render,
-                # and JS render timeout after 20 seconds (default infinity) to avoid JS loop or manual interaction
-                # JS render will launch chrome driver, allow longer time (20 sec)
-                await r.html.arender(wait=1.5, timeout=20)
+                # to be safe, wait for 5.0 seconds (default 0.2) before calling JS render,
+                # and JS render timeout after 30 seconds (default infinity) to avoid JS loop or manual interaction
+                # JS render will launch chrome driver.
+                log(f"Before rendering {url=} " + (" " * 10), endstr="\r")
+                await r.html.arender(timeout=10)
+                # await r.html.arender(wait=5.0, timeout=20)
             except Exception as renderErr:
-                log(f'Failed to render {url}: {renderErr}, use raw content\n', outfile=sys.stderr)
+                log(f'Failed to render {url}: {renderErr}, continue to use raw content    ', endstr="\n", outfile=sys.stdout)
                 traceback.print_exc(limit=6, file=sys.stderr, chain=True)
         await session.close()
         log(f"Done loading {url[:80]}" + (" " * 10), endstr="\r")

@@ -4,11 +4,14 @@
 #  package installed: 
 #     /usr/local/bin/python3 -m pip install py-pdf-parser beautifulsoup4
 #
+import os
+
 from py_pdf_parser.loaders import load_file
 import pandas as pd
 from bs4 import BeautifulSoup
 from commonfuncs import log, getAsyncWebResponses
-import sys, traceback, urllib.parse
+import sys, traceback, urllib.parse, os, threading
+import concurrent.futures as cf
 
 def updateHeaderRow(df, sizenum, lengthnum):
     if df.loc[(df['font_size'] == sizenum)].any().all():
@@ -115,27 +118,24 @@ def splitstring(nStr, maxLen=8000, minOverlap=200):
     if maxLen < (minOverlap * 4):
         raise Exception("max length (" + str(maxLen) +") should be greater than minimum overlap ("+ str(minOverlap) + ") by more than 4 times")
     retList = []
-    inneradded = False
     while len(nStr.encode('utf-8')) > maxLen:
         p1 = maxLen - 1
-        inneradded = False
-        while p1 > (maxLen - minOverlap * 2) and inneradded == False:
+        encodelonger = False
+        while p1 > (maxLen - minOverlap * 2) and encodelonger == False:
             ## safety check for non-ascii
             if len(nStr[0:p1-1].encode('utf-8')) > maxLen:
                 p1 = int(p1 / 2) + 2
                 log(f"splitstring, non-ascii makes more bytes, split at half: {nStr[0:120]}....      ", endstr="\r")
-
-            if nStr[(p1-2):p1] == '. ':
+                encodelonger = True
+            elif nStr[(p1-2):p1] == '. ':
                 retList.append(nStr[0:p1-1].strip())
-                inneradded = True
             elif p1 < maxLen - minOverlap and nStr[p1] == ' ':
                 # after progressing an overlap length, space for break is also OK
                 retList.append(nStr[0:p1].strip())
-                inneradded = True
             else:
                 p1 = p1 - 1
 
-        if inneradded == False:
+        if encodelonger == True:
             #  hard cut-off, after moving back twice minOverlap position, should not happen
             if p1 > 30 and len(nStr) > p1 + 25:
                 log(f'Break at an unnatural place, with "{nStr[(p1-25):p1]}"|"{nStr[p1:(p1+25)]}" ==> {minOverlap=} is too small.', outfile=sys.stderr)
@@ -273,6 +273,41 @@ def parsehtml(df, weburl, htmltext, maxcontentlength, ignorelength, mincontentov
     df = addrows(df, weburl, key, contentstr, maxcontentlength, ignorelength, mincontentoverlap)
     return(df)
 
+def parseWebContent(webpage, aresponse, df, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
+    """
+    given a list of web URLs and a list of Response object, extract contents and put into dataframe
+
+    :param webs:              a list of web urls
+    :param responses:         a list of response objects
+    :param maxcontentlength:  max # of chars, longer contents will be broken into multiple
+    :param ignorelength:      ignore short content, in chars
+    :param mincontentoverlap: requires minimum # of chars overlap when breaking up contents
+    :return:  dataframe, with extracted contents  columns=['webpage', 'subject', 'content', 'combined'])
+    """
+    try:
+        log(f"{threading.current_thread().name} parsing web page {webpage[:80]}    ", endstr='\n')
+        if aresponse == None:
+            log(f"Skip page {webpage[:80]}  with no response.        \n",  outfile=sys.stderr)
+            return df
+        ct = aresponse.headers['Content-Type']
+        if 'text/html' in ct.lower():
+            htmltext = aresponse.html.html
+            df = parsehtml(df, webpage, htmltext, maxcontentlength, ignorelength, mincontentoverlap)
+        elif 'application/pdf' in ct.lower():
+            pdffilename = '/tmp/web' + str(hash(webpage))+'.pdf'
+            pdffile = open(pdffilename, 'wb')
+            pdffile.write(aresponse.content)
+            pdffile.close()
+            df = parsepdf(df, webpage, pdffilename, maxcontentlength, ignorelength, mincontentoverlap)
+        else:
+            log(f"Skip page {webpage[:80]} with unknown content type {ct}   \n", outfile=sys.stderr)
+    except Exception as ex:
+        log(f"Failed to parse web content for {webpage=}    ", endstr="\n", outfile=sys.stdout)
+
+    return df
+
+def _parseWebContent(args):
+    return parseWebContent(*args)
 def extractWebContents(webs, responses, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
     """
     given a list of web URLs and a list of Response object, extract contents and put into dataframe
@@ -296,27 +331,66 @@ def extractWebContents(webs, responses, maxcontentlength=8000, ignorelength=30, 
     for aresponse in responses:
         webpage = webs[webindex]
         webindex = webindex + 1
-        log(f"  parsing web page {webpage[:60]}    ", endstr='\r')
-        if aresponse == None:
-            log(f"Skip page {webpage[:80]}  with no response.        \n",  outfile=sys.stderr)
-            continue
-        ct = aresponse.headers['Content-Type']
-        if 'text/html' in ct.lower():
-            htmltext = aresponse.html.html
-            df = parsehtml(df, webpage, htmltext, maxcontentlength, ignorelength, mincontentoverlap)
-        elif 'application/pdf' in ct.lower():
-            pdffilename = '/tmp/web' + str(hash(webpage))+'.pdf'
-            pdffile = open(pdffilename, 'wb')
-            pdffile.write(aresponse.content)
-            pdffile.close()
-            df = parsepdf(df, webpage, pdffilename, maxcontentlength, ignorelength, mincontentoverlap)
-        else:
-            log(f"Skip page {webpage[:80]} with unknown content type {ct}   \n", outfile=sys.stderr)
+        df = parseWebContent(webpage, aresponse, df, maxcontentlength, ignorelength, mincontentoverlap)
 
-    #embedding_encoding = "cl100k_base"  # this the encoding for text-embedding-ada-002
-    #encoding = tiktoken.get_encoding(embedding_encoding)
-    #df["n_tokens"] = df.combined.apply(lambda x: len(encoding.encode(x)))
     return df
+
+
+
+def collectArguments(webs, responses, df, maxcontentlength, ignorelength, mincontentoverlap):
+    retargs = []
+    idx = 0;
+    for weburl in webs:
+        aresponse = responses[idx]
+        idx = idx + 1
+        thisarg = (weburl, aresponse, df, maxcontentlength, ignorelength, mincontentoverlap)
+        log(f"a pair of argument {thisarg=}        ", endstr="\n")
+        retargs.append(thisarg)
+
+    return retargs
+
+def extractWebContentsParallel(webs, responses, maxcontentlength=8000, ignorelength=30, mincontentoverlap=800):
+    """
+
+    :param webs:
+    :param responses:
+    :param maxcontentlength:
+    :param ignorelength:
+    :param mincontentoverlap:
+    :return: combined data frame from all results
+    """
+    pcount = 4
+    if (os.cpu_count() > 6):
+        pcount = os.cpu_count() - 2
+
+    dfs = []
+    df = pd.DataFrame(None, columns=['webpage', 'subject', 'content', 'combined'])
+
+    log(f"Parse {len(webs)} web responses in {pcount} threads." + (" " * 50), endstr="\n")
+    try:
+        # args = collectArguments(webs, responses, df, maxcontentlength, ignorelength, mincontentoverlap)
+        with cf.ThreadPoolExecutor(max_workers=pcount) as executor:
+            fs = []
+            webidx = 0;
+            try:
+                for aresponse in responses:
+                    weburl = webs[webidx]
+                    webidx = webidx + 1
+                    thisarg = (weburl, aresponse, df, maxcontentlength, ignorelength, mincontentoverlap)
+                    afuture = executor.submit(_parseWebContent, thisarg)
+                    fs.append(afuture)
+                for af in fs:
+                    aresult = af.result()
+                    dfs.append(aresult)
+                return pd.concat(dfs, ignore_index=True)
+            except Exception as procErr:
+                log(f"Some processes are timed out: {procErr=} \n", outfile=sys.stdout)
+                traceback.print_exc(limit=10, file=sys.stderr, chain=True)
+    except Exception as err:
+        log(f"Unexpected {err=} \n", outfile=sys.stdout)
+        traceback.print_exc(limit=8, file=sys.stderr, chain=True)
+    return None
+
 
 def getBingSearchLinks(searchphrase, numresults=10):
     """
@@ -327,7 +401,18 @@ def getBingSearchLinks(searchphrase, numresults=10):
     :param numresults:   the number of URLs returned, default 10 - first Bing page
     :return:  a list of URLs in string format
     """
-    webs = []
+    # use smaller web pages to avoid out of memory errors
+    webs = ['https://downloads.regulations.gov/NTIA-2023-0005-0108/attachment_1.pdf',
+            'https://garyzhu.net/',
+            'https://www.garyzhu.net/notes/ZombieCookie.html',
+            'https://www.garyzhu.net/notes/SentientAI.html',
+            'https://garyzhu.net/notes.html',
+            'https://garyzhu.net/notes/Oracle_64.html',
+            'https://www.garyzhu.net/notes/LVM_Linux.html']
+    # webs = []
+    if len(webs) > 0:
+        return webs
+
     qstr=urllib.parse.quote(searchphrase, safe='')
     srch1 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=1"
     srch2 = "https://www.bing.com/search?q=" + qstr + "&rdr=1&first=2"
@@ -361,3 +446,4 @@ def getBingSearchLinks(searchphrase, numresults=10):
             log(f"Unexpected {err=} when parsing Bing result\n", outfile=sys.stderr)
             traceback.print_exc(limit=8, file=sys.stderr, chain=False)
     return webs[:numresults]
+    return webs

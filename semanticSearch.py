@@ -15,6 +15,10 @@ BOLDSTOP="\033[m"
 
 try:
     df = get_embedded_dataframe(searchphrase=userquestion)
+    if df is None or df.empty:
+        log(BOLDSTART + "Failed to load data frame, exit!     " + BOLDSTOP, endstr="\n")
+        sys.exit(1)
+
     while userquestion.lower() != "stop":
         answerobj = get_answer(df, userquestion, top_n=12)
         print("\n\n")
@@ -27,7 +31,7 @@ try:
         while len(userquestion.strip()) < 3:
             userquestion = input("\nEnter your next question, if you want to stop, type " + BOLDSTART + "stop" + BOLDSTOP + ": \n    ")
         print("\n")
-    log("The End")
+    log(f"{BOLDSTART}The End.{BOLDSTOP}", endstr="\n")
 
 except Exception as err:
     log(f"Unexpected {err=}, {type(err)=}")

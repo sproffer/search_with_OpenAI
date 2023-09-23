@@ -12,10 +12,10 @@ Bottom line, how to finish ***the last mile*** of user search journey, by provid
 ##  What this app does
 
 1. Given user's search query, look up search engine to find top 15 (configurable) URLs.
-2. Retrieve these web pages, digest contents, find most relevant materials for users' search query
-3. Generate a consolidated response, attaching reference URLs from which this answer is derived.
+2. Retrieve these web pages, digest and embed the contents
+3. ([RAG](https://research.ibm.com/blog/retrieval-augmented-generation-RAG)) Generate a consolidated response based on embedded web contents, attaching reference URLs.
 4. Users can continue ask questions within the same context
-5. If subsequent queries are not relevant to the established context, the app would fall back to OpenAI for answer.
+5. If subsequent queries are not relevant to the established context, the app would fall back to OpenAI for answer with sarcastic tune.
 
 ##  To use this app
 1. packages needed:
@@ -24,9 +24,7 @@ Bottom line, how to finish ***the last mile*** of user search journey, by provid
    ```
 2. environment variables OPENAI_ORG_ID and OPENAI_API_KEY (with your OpenAI account) should be set up beforehand.
 3. the app has coded in [OpenAI rate limit](https://platform.openai.com/docs/guides/rate-limits/overview), based on ***pay-as-you-go*** plan.
-4. answers from OpenAI was set up to randomly include sarcastic tones, to lift my mood during long arduous language model analysis. 
-5. it is *slow*, all Open API calls are sequential. I tried and failed to make parallel calls, regardless rate limit.
-For commercial use, there are several potentials to speed up response time. 
+4. it is *slow*, all Open API calls are sequential. I tried and failed to make parallel calls, regardless rate limit.
 But even with current form, **it might still be faster than most people reading through 10 web pages**.
 
 

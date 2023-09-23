@@ -1,22 +1,22 @@
-import traceback, tiktoken, time, openai, os, sys, random, json
+import traceback, tiktoken, time, openai, os, sys, json
 import pandas as pd
 import numpy as np
 from openai.embeddings_utils import cosine_similarity
 from pandarallel import pandarallel
 from commonfuncs import log, getFilenameHash, getAsyncWebResponses
-from webpagedigest import extractWebContents, getBingSearchLinks
+from webpagedigest import extractWebContents, extractWebContentsParallel, getBingSearchLinks
 
 #########################################
 #  OpenAI model and chunk size
 #
 lang_model = "gpt-3.5-turbo-16k"
-maxprompttokens     = 8000    # 8,000 tokens for user input/prompt size
-maxcompletiontokens = 8000    # 8,000 tokens for completion, given inputs taking up-to 10,000 tokens
-maxsectionlength    = 20000   # length in char, single letter words or non-ASCII chars with more bytes could still exceed 8191 tokens.
+maxprompttokens     = 8000   # 10,000 tokens for user input/prompt size, there are extra text for context
+maxcompletiontokens = 4000    # 4,000 tokens for completion, given inputs taking up-to 10,000 tokens
+maxsectionlength    = 10000   # length in char, single letter words or non-ASCII chars with more bytes could still exceed 8191 tokens.
 #lang_model = 'gpt-4'   # 8k model
-#maxprompttokens     = 4000   # max 8,000 tokens, including prompt and completion
+#maxprompttokens     = 4000   # max 4,000 tokens, including prompt and completion
 #maxcompletiontokens = 4000   # 4,000 tokens for completion only
-#maxsectionlength    = 12000  # in char, approximate 3k tokens, some single chars created more tokens.
+#maxsectionlength    = 10000  # in char, approximate 3k tokens, some single chars created more tokens.
 
 mincontentoverlap = 400     # in char, about 50 words, enough to not break up a logical continuous sentence
 ignorelength =  30          # indexed content should have more than min content length
@@ -126,14 +126,17 @@ def get_embedded_dataframe(webs=[], searchphrase="", filename=""):
         if len(searchwebs) < 1:
             if  searchphrase != None and len(searchphrase) > 3:
                 # do bing search to get webs
-                searchwebs = getBingSearchLinks(searchphrase, numresults=16)
+                searchwebs = getBingSearchLinks(searchphrase, numresults=8)
             else:
                 raise Exception("Cannot generate embedding, missing list of webs or user question.")
 
+        if len(searchwebs) == 0:
+            log(f"Failed to find any links in Bing search .... {searchphrase=}    ", endstr="\n")
+            return None
+
         log("Load " + str(len(searchwebs)) + " webpages, render and collect contents..." + (" " * 40), endstr="\r")
         results = getAsyncWebResponses(searchwebs)
-        log("Parse and break contents into data frames" + (" " * 30), endstr="\r")
-        df = extractWebContents(searchwebs, results, maxsectionlength, ignorelength, mincontentoverlap)
+        df = extractWebContentsParallel(searchwebs, results, maxsectionlength, ignorelength, mincontentoverlap)
         global start_timer
         start_timer = time.time()
         global progress_counter
@@ -189,9 +192,9 @@ def rate_limit_embeddings(text, model=embedding_model):
         log("embedding " + str(progress_counter) + "   " + ("." * numdots) + (" " * numspaces), endstr="\r")
         return get_embedding_timeout(text, model)
     except Exception as err:
-        log(f"FAILED to embed {text[:80]} with length={len(text)} -- {err=}", endstr="\n", outfile=sys.stdout)
+        log(f"FAILED to embed {text[:80]} with length={len(text)} -- {err=}", endstr="\n", outfile=sys.stderr)
         traceback.print_stack(limit=6, file=sys.stderr)
-        log(f"Use first 10k char to embed ignore text ...{text[10001:]}", endstr="\n", outfile=sys.stderr)
+        log(f"Embed first 10k char (for long text), ignore text from: {text[10001:10080]}..", endstr="\n", outfile=sys.stdout)
         return get_embedding_timeout(text[:10000], embedding_model)
 
 # given input_text, search through DataFrame to find top_n similarity entries,
@@ -206,7 +209,7 @@ def search_embedding(df, input_text, top_n=5):
     )
 
     #### compare inputed embedding with combined embeddeing, get consine similarity
-    df["similarity"] = df.nparray.parallel_apply(lambda x: cosine_similarity(x, searchword))
+    df["similarity"] = df.nparray.apply(lambda x: cosine_similarity(x, searchword))
 
     ####  sort similarity by decending, return top n most irrelevant results
     sdf = df.sort_values(by="similarity", ascending=False)
@@ -264,14 +267,10 @@ def summarize_answer(userq, syspromptstr, timeout=40):
         {"role": "user", "content": "Question: " + userq}
     ]
     if len(syspromptstr.strip()) < 10:
-        #  use sarcastic tune occasionally, and raise temperature to allow some varieties
-        ri = random.randint(1,4)
-        temp=0.2
-        prefixstr = "(OpenAI) "
-        promptsuffix = ""
-        if ri == 1:
-            prefixstr = "(OpenAI sarc) "
-            promptsuffix = ", with sarcastic tune"
+        #  use sarcastic tune, and raise temperature to allow some varieties
+        temp=0.7
+        prefixstr = "(OpenAI sarc) "
+        promptsuffix = ", with sarcastic tune"
         promptmsg=[
             {"role": "system", "content": "Answer with your best knowledge" + promptsuffix + "."},
             {"role": "user", "content": userq}
@@ -302,7 +301,7 @@ def get_answer(df, userq, top_n=6):
     pandarallel.initialize(progress_bar=False, nb_workers=parallel_num, verbose=0)
 
     # add numpy array in df, for math
-    df["nparray"] = df.embedding.parallel_apply(eval).apply(np.array)
+    df["nparray"] = df.embedding.apply(eval).apply(np.array)
 
     log(f"search embedding ... {userq=}            ", endstr="\r")
     topdf = search_embedding(df, userq, top_n)
